@@ -1,97 +1,123 @@
-    import {React,useEffect,useState} from 'react';
-    import {db,auth} from '../config/firebase-config';
-    import{getDocs,collection,addDoc}from 'firebase/firestore'
+import { useEffect, useState } from "react";
+// import "./App.css";
+import { Auth } from "./auth";
+import { db, auth, storage } from "../config/firebase-config";
+import {getDocs,collection,addDoc, deleteDoc,updateDoc,doc,} from "firebase/firestore";
+import { ref, uploadBytes } from "firebase/storage";
 
+const Home = () => {
+        const [movieList, setMovieList] = useState([]);
 
-    const Home = () => {
-        const [articleList, setArticle] = useState([]);
-        const [newArticleTitle, setNewArticleTitle] = useState("");
-        const [newReleaseDate, setNewReleaseDate] = useState(0);
-        const [isNewArticleOscar, setIsNewArticleOscar] = useState(false);
-        const articlesCollectionRef = collection(db, "articles");
+  const [newMovieTitle, setNewMovieTitle] = useState("");
+  const [newReleaseDate, setNewReleaseDate] = useState(0);
+  const [isNewMovieOscar, setIsNewMovieOscar] = useState(false);
 
-        useEffect(()=>{
-        const getArticleList = async () => {
-            try{
-            const data = await getDocs(articlesCollectionRef);
-            const dataset = data.docs.map( (doc)=>({
-                ...doc.data(),
-                id: doc.id
-            } ));
-            // console.log({dataset});
-            setArticle(dataset);
+  const [updatedTitle, setUpdatedTitle] = useState("");
 
-        
-            } catch (err){console.error("1"+err);}
-            
-        };
+  const [fileUpload, setFileUpload] = useState(null);
 
-        
-        useEffect(async() => {
-            getArticleList();
-          }, []);
-        
-        const onSubmitArticle = async () => {
-            try {
-            await addDoc(articlesCollectionRef, {
-                title: newArticleTitle,
-                releaseDate: newReleaseDate,
-                ratedBest: isNewArticleOscar,
-                userId: auth?.currentUser?.uid,
-            });
-            getArticleList();
-            } catch (err) {
-            console.error("2"+err);
-            }
-        };
-        
-    return (
-        <div>
-        <h1>here you find the articles </h1>
-        <form >
-        <div>
-            <label htmlFor="title">Title:</label>
+  const moviesCollectionRef = collection(db, "movies");
+
+  const getMovieList = async () => {
+    try {
+      const data = await getDocs(moviesCollectionRef);
+      const filteredData = data.docs.map((doc) => ({
+        ...doc.data(),
+        id: doc.id,
+      }));
+      setMovieList(filteredData);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    getMovieList();
+  }, []);
+
+  const onSubmitMovie = async () => {
+    try {
+      await addDoc(moviesCollectionRef, {
+        title: newMovieTitle,
+        releaseDate: newReleaseDate,
+        receivedAnOscar: isNewMovieOscar,
+        userId: auth?.currentUser?.uid,
+      });
+      getMovieList();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const deleteMovie = async (id) => {
+    const movieDoc = doc(db, "movies", id);
+    await deleteDoc(movieDoc);
+  };
+
+  const updateMovieTitle = async (id) => {
+    const movieDoc = doc(db, "movies", id);
+    await updateDoc(movieDoc, { title: updatedTitle });
+  };
+
+  const uploadFile = async () => {
+    if (!fileUpload) return;
+    const filesFolderRef = ref(storage, `projectFiles/${fileUpload.name}`);
+    try {
+      await uploadBytes(filesFolderRef, fileUpload);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  return (
+    <div className="App">
+      <Auth />
+
+      <div>
+        <input
+          placeholder="Movie title..."
+          onChange={(e) => setNewMovieTitle(e.target.value)}
+        />
+        <input
+          placeholder="Release Date..."
+          type="number"
+          onChange={(e) => setNewReleaseDate(Number(e.target.value))}
+        />
+        <input
+          type="checkbox"
+          checked={isNewMovieOscar}
+          onChange={(e) => setIsNewMovieOscar(e.target.checked)}
+        />
+        <label> Received an Oscar</label>
+        <button onClick={onSubmitMovie}> Submit Movie</button>
+      </div>
+      <div>
+        {movieList.map((movie) => (
+          <div>
+            <h1 style={{ color: movie.receivedAnOscar ? "green" : "red" }}>
+              {movie.title}
+            </h1>
+            <p> Date: {movie.releaseDate} </p>
+
+            <button onClick={() => deleteMovie(movie.id)}> Delete Movie</button>
+
             <input
-            type="text"
-            id="title"
-            value={newArticleTitle}
-            onChange={event => setNewArticleTitle(event.target.value)}
+              placeholder="new title..."
+              onChange={(e) => setUpdatedTitle(e.target.value)}
             />
-        </div>
-        <div>
-            <label htmlFor="releasedate">release date:</label>
-            <textarea
-            id="releasedate"
-            value={newReleaseDate}
-            type="number    "
-            onChange={event => setNewReleaseDate(Number(event.target.value))}
-            />
-        </div>
-        <div>
-            <label htmlFor="best">is best :</label>
-            <textarea
-            
-            id="best"
-            //   value={best}
-            type="checkbox"
-            checked={isNewArticleOscar}
-            onChange={event => setIsNewArticleOscar(event.target.checked)}
-            />
-        </div>
-        <button  onClick={onSubmitArticle} type="submit">Add Element</button>
-        </form>
-    );
-        {articleList.map((article)=>(
-            <div>
-                <h2 style={{color: article.ratedbest ? "red":"green"}}>{article.title}</h2>
-        
-                <p>Date:{article.releaseDate}</p>
-            </div>
+            <button onClick={() => updateMovieTitle(movie.id)}>
+              {" "}
+              Update Title
+            </button>
+          </div>
         ))}
+      </div>
 
-        </div>
-     );
-    })
-
+      <div>
+        <input type="file" onChange={(e) => setFileUpload(e.target.files[0])} />
+        <button onClick={uploadFile}> Upload File </button>
+      </div>
+    </div>
+  );
 }
     export default Home;
